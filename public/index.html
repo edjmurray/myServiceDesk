@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>ServiceDesk View Ticket</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    pre { background: #f0f0f0; padding: 10px; border: 1px solid #ccc; }
+    .field { margin: 10px 0; }
+    label { font-weight: bold; }
+    .verified-yes { color: green; font-weight: bold; }
+    .verified-no { color: red; font-weight: bold; }
+    .verified-unknown { color: gray; font-style: italic; }
+    
+    
+    /* JSON box base */
+#json-output {
+  display: block;
+  font-size: 12px;
+  max-height: 200px;
+  max-width: 600px;
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid #ccc;
+  background-color: #f9f9f9;
+  margin-bottom: 20px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* These classes MUST match what's added in JS */
+.json-verified-true {
+  background-color: #e6f9e6 !important;
+  border-color: green !important;
+}
+
+.json-verified-false {
+  background-color: #fde0e0 !important;
+  border-color: red !important;
+}
+
+.json-verified-unknown {
+  background-color: #f2f2f2 !important;
+  border-color: gray !important;
+}
+
+
+/* Verified label styles */
+.verified-yes {
+  color: green;
+  font-weight: bold;
+}
+
+.verified-no {
+  color: red;
+  font-weight: bold;
+}
+
+.verified-unknown {
+  color: gray;
+  font-style: italic;
+}
+
+
+
+  </style>
+</head>
+<body>
+
+
+
+  <h2>View Ticket</h2>
+  <div id="ticket-view">
+    <div class="field"><label>First Name:</label> <span id="first-name">-</span></div>
+    <div class="field"><label>Last Name:</label> <span id="last-name">-</span></div>
+    <div class="field"><label>Email:</label> <span id="email">-</span></div>
+    <div class="field"><label>Ticket Number:</label> <span id="ticket-number">-</span></div>
+    <div class="field"><label>UUID:</label> <span id="uuid">-</span></div>
+    <div class="field"><label>Verified:</label> <span id="verified">-</span></div>
+    <button onclick="loadUser()">View Ticket</button>
+    <button onclick="sendWebhook()">Verify User</button>
+    <button onclick="clearPayload()">Clear JSON</button>
+    
+
+
+  </div>
+    
+  <h2>Latest Webhook JSON</h2>
+   <p id="waiting-message">Waiting for webhook data...</p>
+   <pre id="json-output" >{}</pre>
+
+  <script>
+    let lastDataHash = "";
+
+      async function fetchPayload() {
+  try {
+    const res = await fetch("/payload");
+    const data = await res.json();
+
+    const output = document.getElementById("json-output");
+    const verifiedEl = document.getElementById("verified");
+    const waitingMessage = document.getElementById("waiting-message");
+
+    // Display JSON content
+    output.textContent = JSON.stringify(data, null, 2);
+
+    // Remove all existing classes
+    output.classList.remove("json-verified-true", "json-verified-false", "json-verified-unknown");
+    verifiedEl?.classList.remove("verified-yes", "verified-no", "verified-unknown");
+
+    const status = data.verified;
+    console.log("verified value:", status); // DEBUG
+
+    if (status === "Verified - True") {
+      output.classList.add("json-verified-true");
+      if (verifiedEl) {
+        verifiedEl.textContent = status;
+        verifiedEl.classList.add("verified-yes");
+      }
+    } else if (status === "Verified - False") {
+      output.classList.add("json-verified-false");
+      if (verifiedEl) {
+        verifiedEl.textContent = status;
+        verifiedEl.classList.add("verified-no");
+      }
+    } else {
+      output.classList.add("json-verified-unknown");
+      if (verifiedEl) {
+        verifiedEl.textContent = "Verified - Unknown";
+        verifiedEl.classList.add("verified-unknown");
+      }
+    }
+
+    // Show/hide waiting message
+    if (Object.keys(data).length === 0) {
+      waitingMessage.style.display = "block";
+    } else {
+      waitingMessage.style.display = "none";
+    }
+  } catch (err) {
+    console.error("Error fetching payload:", err);
+    document.getElementById("json-output").textContent = "{}";
+  }
+}
+
+
+
+    
+    
+      async function sendWebhook() {
+       const payload = {
+         firstName: document.getElementById("first-name").textContent,
+         lastName: document.getElementById("last-name").textContent,
+         email: document.getElementById("email").textContent,
+         ticketNumber: document.getElementById("ticket-number").textContent,
+         sentAt: new Date().toISOString()
+       };
+
+       try {
+        const res = await fetch("https://indigocloud.workflows.okta.com/api/flo/69d6e9bc68d7ec093142acb60fa08777/invoke", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+          alert("Webhook sent successfully!");
+        } else {
+          alert("Failed to send webhook.");
+        }
+      } catch (error) {
+         console.error("Error sending webhook:", error);
+         alert("Error sending webhook.");
+      }
+   }
+    
+      async function clearPayload() {
+        try {
+          const res = await fetch("/clear", {
+            method: "POST"
+          });
+
+          if (res.ok) {
+            lastDataHash = ""; // Reset local hash
+            document.getElementById("json-output").textContent = "{}";
+            document.getElementById("json-output").style.Name = "";
+            document.getElementById("waiting-message").style.display = "block";
+            alert("Payload cleared!");
+          } else {
+            alert("Failed to clear payload.");
+          }
+        } catch (error) {
+          console.error("Error clearing payload:", error);
+          alert("Error clearing payload.");
+        }
+      }
+
+    //Loaduser()
+      async function loadUser() {
+    try {
+      const userRes = await fetch("/user");
+      const user = await userRes.json();
+
+      const payloadRes = await fetch("/payload");
+      const payload = await payloadRes.json();
+
+      document.getElementById("first-name").textContent = user.firstName;
+      document.getElementById("last-name").textContent = user.lastName;
+      document.getElementById("email").textContent = user.email;
+      document.getElementById("ticket-number").textContent = user.ticketNumber;
+      document.getElementById("uuid").textContent = user.uuid;
+
+      const verifiedEl = document.getElementById("verified");
+      const status = payload.verified;
+
+      if (status === "Verified - True") {
+        verifiedEl.textContent = status;
+        verifiedEl.className = "verified-yes";
+      } else if (status === "Verified - False") {
+        verifiedEl.textContent = status;
+        verifiedEl.className = "verified-no";
+      } else {
+        verifiedEl.textContent = "Verified - Unknown";
+        verifiedEl.className = "verified-unknown";
+      }
+    } catch (err) {
+      console.error("Error loading user or payload:", err);
+      alert("Error loading user or payload. Check logs.");
+    }
+  }
+  
+  fetchPayload();
+  setInterval(fetchPayload, 3000);
+  </script>
+</body>
+</html>
+
+
+
